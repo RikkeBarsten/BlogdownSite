@@ -1,0 +1,165 @@
+---
+title: Lego themes and sets - part one
+author: Rikke Barsten
+date: '2019-01-13'
+slug: lego-themes-and-sets-part-one
+categories: []
+tags: [R, data.tree, hierarchical data, lego]
+showtoc: FALSE
+---
+
+At our place we are huge Lego fans, so at some point I started playing with the idea of making a visualization of some Lego data. After a short search, I found the [rebrickable](https://rebrickable.com/) site, that offers a great database with themes, sets and bricks for free. It can be accessed directly via the sites' API, or you can just download csv-files with your required data. The latter are updated at the start of each month, which is all I need.
+
+## Get the data
+To get the lego themes and sets data, I used the RCurl library, which makes it easy to download data from https-sites. I also used the tidyverse library to transform the data.
+
+To get data from a https site, it is necessary to add a url-suffix to the url. First I setup the urls:
+
+```{r warning=FALSE, error=FALSE, message=FALSE}
+library(RCurl)
+library(tidyverse)
+
+url_suffix <- "?accessType=DOWNLOAD"
+themes_url <- "https://m.rebrickable.com/media/downloads/themes.csv"
+sets_url <- "https://m.rebrickable.com/media/downloads/sets.csv"
+
+```
+
+I then pass the url with the suffix to the RCurl getURL-function for both the themes data and the set data:
+
+```{r warning=FALSE, error=FALSE, message=FALSE}
+themes <- str_c(themes_url, url_suffix) %>% 
+          getURL %>%                         
+          read_csv                          
+
+sets <- str_c(sets_url, url_suffix) %>%
+        getURL %>%
+        read_csv
+```
+
+The first line combines the url with the suffix, the next passes this url-string to the getURL-function. This will return the csv-file as a string. This string is finally passed to the read_csv function, that can take either a text string or csv-file as input, and outputs a [tibble](https://cran.r-project.org/web/packages/tibble/vignettes/tibble.html).
+
+
+## Inspect the data
+Now, lets have a look at the two datasets, and lay out a strategy to combine them:
+```{r warning=FALSE, error=FALSE, message=FALSE}
+glimpse(sets)
+head(sets, 20)
+
+glimpse(themes)
+head(themes, 20)
+```
+
+As you can see, the sets data is a standard data table with each row containing information about the sets, as well as a theme id.
+
+The theme table is different in that it contains information on themes and their subthemes and so forth until a maximum level depth of N. The third column represents this hierarchical structure information with a refernce to a parent theme. The best way to look at this kind of data is to convert it into at data tree. And luckily there is a package just for that - the data.tree package. It has a FromDataFrameNetwork function, that can convert such a data frame to at tree structure. It needs the first two columns to be Parent and Child to set the node-hierarchy. Any subsequent column becomes a node value.
+
+I decided to use the name column instead of id-column to create the tree, not to have to replace ids with names in the tree later. In this step I ran into a problem of duplicates, since many subthemes have the same names:
+
+```{r warning=FALSE, error=FALSE, message=FALSE}
+themes_duplo <- themes %>%
+                count(name) %>%
+                filter(n > 1) %>%
+                arrange(desc(n))
+
+head(themes_duplo, 20)
+```
+
+So I need to combine the id and name of a theme in the same column. First I create a lookup-table with only the theme and theme-id. I then use the lookup table to get the parent names: 
+
+```{r warning=FALSE, error=FALSE, message=FALSE}
+themes_names <- themes[,c(1,2)]
+head(themes_names)
+```
+
+Then I combine both the child id and name as well as the parent id and name, and rename the columns Parent and Child. Finally, I replace the NAs (the top level node) to "Lego":
+```{r warning=FALSE, error=FALSE, message=FALSE}
+themes_parentChild <- themes %>%
+                left_join(themes_names, by = c("parent_id" = "id"), suffix = c("_child", "_parent")) %>%
+                unite(id, name_child, col = Child, sep = " ") %>%
+                unite(parent_id, name_parent, col = Parent, sep = " ") %>%
+                mutate_if(is.character, str_replace_all, pattern = "NA NA", replacement = "Lego")
+
+head(themes_parentChild)
+```
+
+Before combining the themes data with the sets data, I create a themes tree, to inspect the themes hierarchy:
+
+```{r warning=FALSE, error=FALSE, message=FALSE}
+library(data.tree)
+
+themes_tree <- FromDataFrameNetwork(as.data.frame(themes_parentChild))
+
+print(themes_tree)
+```
+Thus, a nice tree structure is printed to the console. But the tree is quite big. You can use the \$ to access nodes, and use node functions to inquire about the nodes. We can find the total number of nodes ind the themes tree by using the \$totalCount on the tree..
+
+```{r warning=FALSE, error=FALSE, message=FALSE}
+themes_tree$totalCount
+```
+
+...which is the same as the number of rows in the themes table plus the top node (Lego).
+
+##Combine the themes and sets data
+I want the sets to be added as child nodes to the related themes nodes. The easiest way to do this, is to add the sets table to the bottom of the themes table, since the sets table can be interpreted as a two-level tree (sets and themes). To do this, the two tables need the same columns. I will first add the themes names to the table by joining with the themes_names lookup table. Then I combine id and name into Parent and Child columns. Finally, I add the missing value columns to the themes table (I want the year and number of bricks information as node values). 
+
+
+```{r warning=FALSE, error=FALSE, message=FALSE}
+sets_parentChild <- sets %>%
+                left_join(themes_names, by = c("theme_id" = "id"), suffix = c("_set", "_theme")) %>%
+                unite(set_num, name_set, col = "Child", sep = " ", remove = FALSE) %>%
+                unite(theme_id, name_theme, col = Parent, sep = " ", remove = TRUE) %>%
+                select(Parent, Child, set_num, name_set, year, num_parts)
+head(sets_parentChild)
+
+themes_parentChild <- themes_parentChild %>%
+                  mutate(set_num = as.character(NA), name_set = as.character(NA), year = as.numeric(NA), num_parts = as.numeric(NA))
+
+head(themes_parentChild)
+```
+
+The two tables can then be combined using the union function:
+```{r warning=FALSE, error=FALSE, message=FALSE}
+sets_themes <- union(themes_parentChild, sets_parentChild)
+head(sets_themes)
+```
+
+...and finally be converted to a tree structure:
+```{r warning=FALSE, error=FALSE, message=FALSE}
+set_themes_tree <- FromDataFrameNetwork(as.data.frame(sets_themes))
+
+print(set_themes_tree$`204 Designer Sets`, "year", "num_parts")
+```
+Above I only printed the 'Designer Sets' subtheme as example, since the rest of tree is too big.
+```{r warning=FALSE, error=FALSE, message=FALSE}
+set_themes_tree$totalCount
+```
+
+##Visualizing the tree
+As I have done above, the tree can easily be visualized in the console using the print function. Even if this is a pretty neat representation of the tree, it is quite limited. To create some nice visualizations, there is the networkD3 package, that uses some of the D3 javascript library to create network visualizations. The visualizations cannot take at tree as direct input, but the tree can easily be converted to a list, that can be used with the package.
+
+For the visualization I will use the Star Wars subtree:
+```{r warning=FALSE, error=FALSE, message=FALSE}
+star_wars_subtree <- set_themes_tree$`158 Star Wars`
+star_wars_subtree$totalCount
+```
+
+The Star Wars subtree contains 735 nodes, which is probably too big for a nice visualization, but we'll try anyway:
+```{r warning=FALSE, error=FALSE, message=FALSE}
+star_wars_list <- ToListExplicit(star_wars_subtree, unname = TRUE)
+
+library(networkD3)
+diagonalNetwork(star_wars_list, fontSize = 8)
+```
+
+Ok, that did not work out very well. Let's try the 'Solo' subsubtree from the Star Wars subtree.
+```{r warning=FALSE, error=FALSE, message=FALSE}
+star_wars_solo <- set_themes_tree$`158 Star Wars`$`624 Solo` %>%
+                  ToListExplicit(unname = TRUE)
+
+diagonalNetwork(star_wars_solo, fontSize = 12)
+```
+
+That's better, but a little dull. The visualization is not dynamic, does not show the field values, and is not very adjustable.
+
+In the next part of the 'Lego themes and sets' series, I will use the lego data as represented in the sets and themes tree directly in D3, to create some more interesting visuals.
