@@ -152,7 +152,7 @@ library(networkD3)
 diagonalNetwork(star_wars_list, fontSize = 8)
 ```
 
-Ok, that did not work out very well. Let's try the 'Solo' subsubtree from the Star Wars subtree.
+Ok, that did not work out very well. Let's try the 'Solo' sub-subtree from the Star Wars subtree.
 ```{r warning=FALSE, error=FALSE, message=FALSE}
 star_wars_solo <- set_themes_tree$`158 Star Wars`$`624 Solo` %>%
                   ToListExplicit(unname = TRUE)
@@ -160,6 +160,6 @@ star_wars_solo <- set_themes_tree$`158 Star Wars`$`624 Solo` %>%
 diagonalNetwork(star_wars_solo, fontSize = 12)
 ```
 
-That's better, but a little dull. The visualization is not dynamic, does not show the field values, and is not very adjustable.
+That's better, but a little dull. The visualization is not very interactive, does not show the field values, and is difficult to customize.
 
 In the next part of the 'Lego themes and sets' series, I will use the lego data as represented in the sets and themes tree directly in D3, to create some more interesting visuals.
