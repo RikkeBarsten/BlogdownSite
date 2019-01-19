@@ -5,6 +5,8 @@ date: '2019-01-12'
 slug: hello
 categories: []
 tags: []
+showtoc: FALSE
 ---
 
-Hello! Welcome to my blog. I'll mostly write about things I do with data in R and Javascript. You can read more about me in the [about](/top/about/) section.
+##Hello! 
+Welcome to my blog. I'll mostly write about things I do with data in R and Javascript. You can read more about me in the [about](/top/about/) section.

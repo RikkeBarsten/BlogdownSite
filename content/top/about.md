@@ -1,3 +1,11 @@
+---
+title: About
+author: Rikke Barsten
+date: '2019-01-13'
+showtoc: FALSE
+---
+
+
 ![](/img/rikkebarsten.jpg)  I am currently working as a data analyst at the Zealand Region in Denmark. I also like to play with data in my free time, and I have decided to share some of that with the world in this blog.
 
 As a busy mom of two, there might be some time between projects and updates. For the same reason I try to keep my projects short and my code effective, and only do stuff I really enjoy.
