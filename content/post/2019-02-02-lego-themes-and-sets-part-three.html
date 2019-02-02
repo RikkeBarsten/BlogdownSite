@@ -1,0 +1,381 @@
+---
+title: Lego themes and sets part three
+subtitle: An interactive dendrogram
+author: Rikke Barsten
+date: '2019-02-02'
+slug: lego-themes-and-sets-part-three
+categories: []
+tags: [d3, dendrogram, lego, visualization]
+showtoc: FALSE
+---
+
+
+
+<p>The whole lego themes and sets tree is too big to show in one dendrogram. To be able to show it all in one visualization, it’s necessary to make the visualization dynamic, so that you can focus on some parts, while hiding others.There are some <a href="https://bl.ocks.org/d3noob/43a860bc0024792f8803bba8ca0d5ecd">examples</a> available, that I have used and customized to fit my needs. The following is a mini example, that can fit in this post (if your are viewing it on a big screen), but it’s better viewed in full-page view <a href="https://rikkebarsten.github.io/LegoD3Dyn/">here</a>.</p>
+<svg>
+</svg>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<p>To make the graph dynamic, you basically have to put the graph-drawing code into a function, that will be called for each node when clicked, and remove the subtrees from a node when clicked again.</p>
+<p>Heres the code, that is creating the visualization:</p>
+<pre class="js"><code>
+var margin = {top: 20, right: 20, bottom: 30, left: 90},
+    width = 800 - margin.left - margin.right,
+    height = 1500 - margin.top - margin.bottom;
+
+
+var svg = d3.select(&quot;svg&quot;)
+    .attr(&quot;width&quot;, width + margin.right + margin.left)
+    .attr(&quot;height&quot;, height + margin.top + margin.bottom)
+    .append(&quot;g&quot;)
+    .attr(&quot;transform&quot;, &quot;translate(&quot;
+          + margin.left + &quot;,&quot; + margin.top + &quot;)&quot;);
+
+var i = 0,
+    duration = 750,
+    root;
+
+
+var treemap = d3.tree().size([height, width]);
+
+d3.json(&#39;/data/themes_sets.json&#39;, function(error, data) {
+    if (error) throw error;
+
+
+root = d3.hierarchy(data, function(d) { return d.children; })
+    .sort((a, b) =&gt; (b.height - a.height) || b.data.name.localeCompare(a.data.name));
+
+root.x0 = height / 2;
+root.y0 = 0;
+
+//Collapse after the second level as a start
+root.children.forEach(collapse);
+//Call the update function to create the tree and subtrees
+update(root);
+
+});
+
+//Collapse the node and all it&#39;s children
+function collapse(d) {
+  if(d.children) {
+    d._children = d.children
+    d._children.forEach(collapse)
+    d.children = null
+  }
+}
+
+function update(source) {
+
+ 
+  var data = treemap(root);
+
+  
+  var nodes = data.descendants(),
+      links = data.descendants().slice(1);
+
+  
+  nodes.forEach(function(d){ d.y = d.depth * 100});
+
+ 
+
+  
+  var node = svg.selectAll(&#39;g.node&#39;)
+      .data(nodes, function(d) {return d.id || (d.id = ++i); });
+
+  // Enter any new modes at the parent&#39;s previous position.
+  var nodeEnter = node.enter().append(&#39;g&#39;)
+      .attr(&#39;class&#39;, &#39;node&#39;)
+      .attr(&quot;transform&quot;, function(d) {
+        return &quot;translate(&quot; + source.y0 + &quot;,&quot; + source.x0 + &quot;)&quot;;
+    })
+    .on(&#39;click&#39;, click);
+
+      nodeEnter.append(&quot;image&quot;)
+      .attr(&quot;xlink:href&quot;, &quot;https://img.brickowl.com/files/image_cache/larger/lego-red-brick-1-x-2-without-bottom-tube-2-887549-81.jpg&quot;)
+      .attr(&quot;x&quot;, &quot;-10px&quot;)
+      .attr(&quot;y&quot;, &quot;-7px&quot;)
+      .attr(&quot;width&quot;, &quot;12px&quot;)
+      .attr(&quot;height&quot;, &quot;12px&quot;);
+  
+// Add labels for the nodes
+  nodeEnter.append(&#39;text&#39;)
+      .attr(&quot;dy&quot;, &quot;.35em&quot;)
+      .attr(&quot;x&quot;, function(d) {
+          return d.children || d._children ? -12 : 12;
+      })
+      .attr(&quot;text-anchor&quot;, function(d) {
+          return d.children || d._children ? &quot;end&quot; : &quot;start&quot;;
+      })
+      .text(function(d) { return d.data.name; })
+      .style(&quot;font-size&quot;, &quot;10px&quot;);
+
+// UPDATE
+  var nodeUpdate = nodeEnter.merge(node);
+
+// Transition to the proper position for the node
+  nodeUpdate.transition()
+    .duration(duration)
+    .attr(&quot;transform&quot;, function(d) { 
+        return &quot;translate(&quot; + d.y + &quot;,&quot; + d.x + &quot;)&quot;;
+     });
+
+ 
+
+// Remove any exiting nodes
+  var nodeExit = node.exit().transition()
+      .duration(duration)
+      .attr(&quot;transform&quot;, function(d) {
+          return &quot;translate(&quot; + source.y + &quot;,&quot; + source.x + &quot;)&quot;;
+      })
+      .remove();
+
+
+  // On exit reduce the opacity of text labels
+  nodeExit.select(&#39;text&#39;)
+    .style(&#39;fill-opacity&#39;, 1e-6);
+
+
+
+  var link = svg.selectAll(&#39;path.link&#39;)
+      .data(links, function(d) { return d.id; });
+      
+// Enter any new links at the parent&#39;s previous position.
+  var linkEnter = link.enter().insert(&#39;path&#39;, &quot;g&quot;)
+      .attr(&quot;class&quot;, &quot;link&quot;)
+      .attr(&#39;d&#39;, function(d){
+        var o = {x: source.x0, y: source.y0}
+        return diagonal(o, o)
+      })
+      .attr(&quot;fill&quot;, &quot;none&quot;)
+      .attr(&quot;stroke&quot;, &quot;#555&quot;)
+      .attr(&quot;stroke-opacity&quot;, 0.4)
+      .attr(&quot;stroke-width&quot;, 1.5);
+
+  
+  var linkUpdate = linkEnter.merge(link);
+
+  // Transition back to the parent element position
+  linkUpdate.transition()
+      .duration(duration)
+      .attr(&#39;d&#39;, function(d){ return diagonal(d, d.parent) });
+
+// Remove any exiting links
+  var linkExit = link.exit().transition()
+      .duration(duration)
+      .attr(&#39;d&#39;, function(d) {
+        var o = {x: source.x, y: source.y}
+        return diagonal(o, o)
+      })
+      .remove();
+
+// Store the old positions for transition.
+  nodes.forEach(function(d){
+    d.x0 = d.x;
+    d.y0 = d.y;
+  });
+
+// Creates a curved (diagonal) path from parent to the child nodes
+  function diagonal(s, d) {
+
+    path = `M ${s.y} ${s.x}
+            C ${(s.y + d.y) / 2} ${s.x},
+              ${(s.y + d.y) / 2} ${d.x},
+              ${d.y} ${d.x}`
+
+    return path
+  }
+
+  // Toggle children and call the update function on click.
+  function click(d) {
+    if (d.children) {
+        d._children = d.children;
+        d.children = null;
+      } else {
+        d.children = d._children;
+        d._children = null;
+      }
+    update(d);
+  }
+}
+</code></pre>
+<script type="text/javascript">
+
+var margin = {top: 20, right: 20, bottom: 30, left: 90},
+    width = 800 - margin.left - margin.right,
+    height = 1500 - margin.top - margin.bottom;
+
+
+var svg = d3.select("svg")
+    .attr("width", width + margin.right + margin.left)
+    .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+    .attr("transform", "translate("
+          + margin.left + "," + margin.top + ")");
+
+var i = 0,
+    duration = 750,
+    root;
+
+
+var treemap = d3.tree().size([height, width]);
+
+d3.json('/data/themes_sets.json', function(error, data) {
+    if (error) throw error;
+
+
+root = d3.hierarchy(data, function(d) { return d.children; })
+    .sort((a, b) => (b.height - a.height) || b.data.name.localeCompare(a.data.name));
+
+root.x0 = height / 2;
+root.y0 = 0;
+
+//Collapse after the second level as a start
+root.children.forEach(collapse);
+//Call the update function to create the tree and subtrees
+update(root);
+
+});
+
+//Collapse the node and all it's children
+function collapse(d) {
+  if(d.children) {
+    d._children = d.children
+    d._children.forEach(collapse)
+    d.children = null
+  }
+}
+
+function update(source) {
+
+ 
+  var data = treemap(root);
+
+  
+  var nodes = data.descendants(),
+      links = data.descendants().slice(1);
+
+  
+  nodes.forEach(function(d){ d.y = d.depth * 100});
+
+ 
+
+  
+  var node = svg.selectAll('g.node')
+      .data(nodes, function(d) {return d.id || (d.id = ++i); });
+
+  // Enter any new modes at the parent's previous position.
+  var nodeEnter = node.enter().append('g')
+      .attr('class', 'node')
+      .attr("transform", function(d) {
+        return "translate(" + source.y0 + "," + source.x0 + ")";
+    })
+    .on('click', click);
+
+      nodeEnter.append("image")
+      .attr("xlink:href", "https://img.brickowl.com/files/image_cache/larger/lego-red-brick-1-x-2-without-bottom-tube-2-887549-81.jpg")
+      .attr("x", "-10px")
+      .attr("y", "-7px")
+      .attr("width", "12px")
+      .attr("height", "12px");
+  
+// Add labels for the nodes
+  nodeEnter.append('text')
+      .attr("dy", ".35em")
+      .attr("x", function(d) {
+          return d.children || d._children ? -12 : 12;
+      })
+      .attr("text-anchor", function(d) {
+          return d.children || d._children ? "end" : "start";
+      })
+      .text(function(d) { return d.data.name; })
+      .style("font-size", "10px");
+
+// UPDATE
+  var nodeUpdate = nodeEnter.merge(node);
+
+// Transition to the proper position for the node
+  nodeUpdate.transition()
+    .duration(duration)
+    .attr("transform", function(d) { 
+        return "translate(" + d.y + "," + d.x + ")";
+     });
+
+ 
+
+// Remove any exiting nodes
+  var nodeExit = node.exit().transition()
+      .duration(duration)
+      .attr("transform", function(d) {
+          return "translate(" + source.y + "," + source.x + ")";
+      })
+      .remove();
+
+
+  // On exit reduce the opacity of text labels
+  nodeExit.select('text')
+    .style('fill-opacity', 1e-6);
+
+
+
+  var link = svg.selectAll('path.link')
+      .data(links, function(d) { return d.id; });
+      
+// Enter any new links at the parent's previous position.
+  var linkEnter = link.enter().insert('path', "g")
+      .attr("class", "link")
+      .attr('d', function(d){
+        var o = {x: source.x0, y: source.y0}
+        return diagonal(o, o)
+      })
+      .attr("fill", "none")
+      .attr("stroke", "#555")
+      .attr("stroke-opacity", 0.4)
+      .attr("stroke-width", 1.5);
+
+  
+  var linkUpdate = linkEnter.merge(link);
+
+  // Transition back to the parent element position
+  linkUpdate.transition()
+      .duration(duration)
+      .attr('d', function(d){ return diagonal(d, d.parent) });
+
+// Remove any exiting links
+  var linkExit = link.exit().transition()
+      .duration(duration)
+      .attr('d', function(d) {
+        var o = {x: source.x, y: source.y}
+        return diagonal(o, o)
+      })
+      .remove();
+
+// Store the old positions for transition.
+  nodes.forEach(function(d){
+    d.x0 = d.x;
+    d.y0 = d.y;
+  });
+
+// Creates a curved (diagonal) path from parent to the child nodes
+  function diagonal(s, d) {
+
+    path = `M ${s.y} ${s.x}
+            C ${(s.y + d.y) / 2} ${s.x},
+              ${(s.y + d.y) / 2} ${d.x},
+              ${d.y} ${d.x}`
+
+    return path
+  }
+
+  // Toggle children and call the update function on click.
+  function click(d) {
+    if (d.children) {
+        d._children = d.children;
+        d.children = null;
+      } else {
+        d.children = d._children;
+        d._children = null;
+      }
+    update(d);
+  }
+}
+
+</script>
