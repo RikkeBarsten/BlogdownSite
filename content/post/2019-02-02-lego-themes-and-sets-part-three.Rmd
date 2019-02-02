@@ -9,7 +9,7 @@ tags: [d3, dendrogram, lego, visualization]
 showtoc: FALSE
 ---
 
-The whole lego themes and sets tree is too big to show in one dendrogram. To be able to show it all in one visualization, it's necessary to make the visualization dynamic, so that you can focus on some parts, while hiding others.There are some [examples](https://bl.ocks.org/d3noob/43a860bc0024792f8803bba8ca0d5ecd) available, that I have used and customized to fit my needs. The following is a mini example, that can fit in this post (if your are viewing it on a big screen), but it's better viewed in full-page view [here](https://erdetfredag.dk/).
+The whole lego themes and sets tree is too big to show in one dendrogram. To be able to show it all in one visualization, it's necessary to make the visualization dynamic, so that you can focus on some parts, while hiding others.There are some [examples](https://bl.ocks.org/d3noob/43a860bc0024792f8803bba8ca0d5ecd) available, that I have used and customized to fit my needs. The following is a mini example, that can fit in this post (if your are viewing it on a big screen), but it's better viewed in full-page view [here](https://rikkebarsten.github.io/LegoD3Dyn/).
 
 <svg></svg>
 <script src="https://d3js.org/d3.v4.min.js"></script>      
